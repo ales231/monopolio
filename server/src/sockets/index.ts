@@ -200,6 +200,22 @@ export function initSockets(io: Server): void {
       }
     });
 
+    socket.on('game:proposeTrade', ({ targetPlayerId, wantPropertyId, offerMoney }: { targetPlayerId: string; wantPropertyId: number; offerMoney: number }) => {
+      const user = getUser();
+      if (!user?.roomId) return;
+      const result = GameEngine.proposeTrade(user.roomId, findPlayerId(user.roomId, user.userId), targetPlayerId, wantPropertyId, offerMoney);
+      if ('error' in result) { socket.emit('error', { message: result.error }); return; }
+      io.to(user.roomId).emit('game:state', { gameState: result.game });
+    });
+
+    socket.on('game:respondTrade', ({ accept }: { accept: boolean }) => {
+      const user = getUser();
+      if (!user?.roomId) return;
+      const result = GameEngine.respondTrade(user.roomId, findPlayerId(user.roomId, user.userId), accept);
+      if ('error' in result) { socket.emit('error', { message: result.error }); return; }
+      io.to(user.roomId).emit('game:state', { gameState: result.game });
+    });
+
     socket.on('game:declareBankruptcy', () => {
       const user = getUser();
       if (!user?.roomId) return;

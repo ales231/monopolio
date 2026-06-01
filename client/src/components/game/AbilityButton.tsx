@@ -66,16 +66,6 @@ export default function AbilityButton({ me, game, isMyTurn }: Props) {
         </div>
       )}
 
-      {/* Secondary ability for José Vaca */}
-      {char.secondaryAbility && (
-        <button
-          onClick={() => activateAbility(char.secondaryAbility!)}
-          disabled={(me.cooldowns[char.secondaryAbility] ?? 0) > 0 || !isMyTurn}
-          className="w-full btn btn-secondary text-xs mt-1"
-        >
-          🐕 Escudo del Perro {(me.cooldowns[char.secondaryAbility!] ?? 0) > 0 && `(CD ${me.cooldowns[char.secondaryAbility!]})`}
-        </button>
-      )}
     </div>
   );
 }

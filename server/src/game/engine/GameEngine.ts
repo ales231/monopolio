@@ -690,6 +690,75 @@ export class GameEngine {
     return { game };
   }
 
+  // ── Trade (Arthur) ──────────────────────────────────────────────────────
+  static proposeTrade(
+    roomId: string,
+    fromPlayerId: string,
+    targetPlayerId: string,
+    wantPropertyId: number,
+    offerMoney: number
+  ): { game: GameState } | { error: string } {
+    const game = activeGames.get(roomId);
+    if (!game) return { error: 'Juego no encontrado.' };
+    const from = game.players.find(p => p.id === fromPlayerId);
+    if (!from || from.characterId !== 'arthur') return { error: 'Solo Arthur puede proponer intercambios.' };
+    const cd = from.cooldowns['forcedTradeProposal'] ?? 0;
+    if (cd > 0) return { error: `Habilidad en cooldown (${cd} turnos).` };
+    const target = game.players.find(p => p.id === targetPlayerId && !p.isBankrupt);
+    if (!target) return { error: 'Objetivo inválido.' };
+    const prop = game.properties.find(p => p.id === wantPropertyId && p.ownerId === targetPlayerId);
+    if (!prop) return { error: 'Esa propiedad no pertenece al objetivo.' };
+    if (offerMoney > from.money) return { error: 'No tienes suficiente dinero para esa oferta.' };
+
+    game.pendingAction = {
+      type: 'trade',
+      playerId: fromPlayerId,
+      data: { fromPlayerId, toPlayerId: targetPlayerId, wantPropertyId, offerMoney },
+    };
+    from.cooldowns['forcedTradeProposal'] = 4;
+    this.addEvent(game, fromPlayerId, 'trade', `${from.username} propone intercambio a ${target.username}: quiere ${prop.name} y ofrece $${offerMoney}.`);
+    activeGames.set(roomId, game);
+    return { game };
+  }
+
+  static respondTrade(
+    roomId: string,
+    responderId: string,
+    accept: boolean
+  ): { game: GameState } | { error: string } {
+    const game = activeGames.get(roomId);
+    if (!game) return { error: 'Juego no encontrado.' };
+    if (game.pendingAction?.type !== 'trade') return { error: 'No hay intercambio pendiente.' };
+
+    const data = game.pendingAction.data as { fromPlayerId: string; toPlayerId: string; wantPropertyId: number; offerMoney: number };
+    if (data.toPlayerId !== responderId) return { error: 'No eres el objetivo del intercambio.' };
+
+    const from = game.players.find(p => p.id === data.fromPlayerId);
+    const to = game.players.find(p => p.id === data.toPlayerId);
+    if (!from || !to) return { error: 'Jugadores no encontrados.' };
+
+    if (accept) {
+      const prop = game.properties.find(p => p.id === data.wantPropertyId);
+      if (prop) {
+        prop.ownerId = from.id;
+        to.properties = to.properties.filter(id => id !== prop.id);
+        from.properties.push(prop.id);
+        from.money -= data.offerMoney;
+        to.money += data.offerMoney;
+      }
+      this.addEvent(game, data.toPlayerId, 'trade', `${to.username} aceptó el intercambio de Arthur.`);
+    } else {
+      // Rechaza: paga $30 al banco
+      to.money -= 30;
+      this.addEvent(game, data.toPlayerId, 'trade', `${to.username} rechazó el intercambio y pagó $30 al banco.`);
+      if (to.money < 0) this.checkBankruptcy(game, to);
+    }
+
+    game.pendingAction = undefined;
+    activeGames.set(roomId, game);
+    return { game };
+  }
+
   // ── Declarar Bancarrota ─────────────────────────────────────────────────
   static declareBankruptcy(roomId: string, playerId: string): { game: GameState } | { error: string } {
     const game = activeGames.get(roomId);

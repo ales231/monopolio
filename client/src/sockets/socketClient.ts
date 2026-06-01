@@ -81,4 +81,7 @@ export const socketEmit = {
   endTurn: () => getSocket().emit('game:endTurn'),
   declareBankruptcy: () => getSocket().emit('game:declareBankruptcy'),
   sendChat: (message: string) => getSocket().emit('chat:message', { message }),
+  proposeTrade: (targetPlayerId: string, wantPropertyId: number, offerMoney: number) =>
+    getSocket().emit('game:proposeTrade', { targetPlayerId, wantPropertyId, offerMoney }),
+  respondTrade: (accept: boolean) => getSocket().emit('game:respondTrade', { accept }),
 };
