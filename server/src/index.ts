@@ -14,16 +14,18 @@ const app = express();
 const server = http.createServer(app);
 
 const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:5173';
+// En Codespaces o producción se puede setear CORS_ORIGIN=* en el .env
+const corsOrigin = process.env.CORS_ORIGIN ?? CLIENT_URL;
 
 const io = new Server(server, {
-  cors: { origin: CLIENT_URL, credentials: true },
+  cors: { origin: corsOrigin, credentials: corsOrigin !== '*' },
 });
 
 // Ensure uploads dir exists
 const uploadsDir = process.env.UPLOAD_DIR ?? './uploads';
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
-app.use(cors({ origin: CLIENT_URL, credentials: true }));
+app.use(cors({ origin: corsOrigin, credentials: corsOrigin !== '*' }));
 app.use(express.json());
 app.use('/uploads', express.static(path.resolve(uploadsDir)));
 
