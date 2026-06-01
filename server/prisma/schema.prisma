@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  username     String    @unique
+  passwordHash String
+  avatarUrl    String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  stats        UserStats?
+  hostedRooms  Room[]    @relation("HostedRooms")
+  gameResults  GameResult[]
+}
+
+model UserStats {
+  id                String  @id @default(uuid())
+  userId            String  @unique
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gamesPlayed       Int     @default(0)
+  gamesWon          Int     @default(0)
+  bankruptcies      Int     @default(0)
+  propertiesBought  Int     @default(0)
+  favoriteCharacter String?
+}
+
+model Room {
+  id         String     @id @default(uuid())
+  code       String     @unique
+  hostUserId String
+  host       User       @relation("HostedRooms", fields: [hostUserId], references: [id])
+  status     RoomStatus @default(LOBBY)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  game       Game?
+}
+
+model Game {
+  id          String       @id @default(uuid())
+  roomId      String       @unique
+  room        Room         @relation(fields: [roomId], references: [id])
+  startedAt   DateTime     @default(now())
+  finishedAt  DateTime?
+  winnerId    String?
+  status      GameStatus   @default(IN_PROGRESS)
+  results     GameResult[]
+}
+
+model GameResult {
+  id          String   @id @default(uuid())
+  gameId      String
+  game        Game     @relation(fields: [gameId], references: [id])
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  characterId String
+  finalMoney  Int
+  isWinner    Boolean  @default(false)
+  isBankrupt  Boolean  @default(false)
+  position    Int      // final ranking
+}
+
+enum RoomStatus {
+  LOBBY
+  IN_GAME
+  FINISHED
+}
+
+enum GameStatus {
+  IN_PROGRESS
+  FINISHED
+}
