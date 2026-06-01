@@ -44,18 +44,18 @@ export const BOARD_TILES: BoardTile[] = [
 ];
 
 export const GROUP_COLORS: Record<string, string> = {
-  barato: '#8b5cf6',
-  fiesta: '#ec4899',
-  comida: '#f59e0b',
-  chisme: '#06b6d4',
-  especial: '#10b981',
-  medico: '#ef4444',
-  tecnologia: '#3b82f6',
-  camila: '#f472b6',
-  deporte: '#84cc16',
-  lujo: '#f59e0b',
-  premium: '#fbbf24',
-  none: '#6b7280',
+  barato:     '#8B4513',  // marrón clásico
+  fiesta:     '#C2185B',  // fucsia oscuro
+  comida:     '#E65100',  // naranja quemado
+  chisme:     '#0277BD',  // azul claro clásico
+  especial:   '#2E7D32',  // verde oscuro
+  medico:     '#B71C1C',  // rojo oscuro
+  tecnologia: '#1565C0',  // azul oscuro
+  camila:     '#AD1457',  // rosa oscuro
+  deporte:    '#558B2F',  // verde oliva
+  lujo:       '#F9A825',  // amarillo clásico
+  premium:    '#1A237E',  // azul marino
+  none:       '#546E7A',
 };
 
 export const TILE_ICONS: Partial<Record<BoardTile['type'], string>> = {

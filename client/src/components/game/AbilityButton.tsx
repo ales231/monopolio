@@ -14,11 +14,12 @@ export default function AbilityButton({ me, game, isMyTurn }: Props) {
   const [showTargets, setShowTargets] = useState(false);
   const [abilityId, setAbilityId] = useState('');
 
-  if (!char?.specialAbility) return null;
+  // Arthur's trade is handled by TradeModal in GamePage
+  if (!char?.specialAbility || char.specialAbility === 'forcedTradeProposal') return null;
 
   const cd = me.cooldowns[char.specialAbility] ?? 0;
   const disabled = cd > 0 || me.abilitiesDisabled;
-  const needsTarget = ['forcedTradeProposal', 'hitPlayer', 'cyberSteal', 'medicalCurse'].includes(char.specialAbility);
+  const needsTarget = ['hitPlayer', 'cyberSteal', 'medicalCurse'].includes(char.specialAbility);
 
   const activateAbility = (id: string, targetPlayerId?: string) => {
     socketEmit.useAbility(id, targetPlayerId);
@@ -37,35 +38,44 @@ export default function AbilityButton({ me, game, isMyTurn }: Props) {
 
   const otherPlayers = game.players.filter((p) => p.id !== me.id && !p.isBankrupt);
 
+  const abilityLabels: Record<string, string> = {
+    dogAvoidPayment: '🐕 Escudo del Perro',
+    hitPlayer: '🤙 No Bro (skip turno)',
+    cyberSteal: '💻 Hackear',
+    medicalCurse: '💊 Maldición Médica',
+    comebackDice: '🏈 Comeback Dice',
+    richStart: '👑 Soy Dios',
+  };
+
   return (
     <div className="relative">
       <button
         onClick={handleClick}
         disabled={disabled || !isMyTurn}
-        className={`w-full btn ${disabled || !isMyTurn ? 'btn-secondary opacity-50' : 'btn-primary'} text-sm`}
+        className={`w-full btn text-sm py-2 ${disabled || !isMyTurn ? 'btn-secondary opacity-50' : 'btn-primary'}`}
       >
-        <span className="mr-1">{char.emoji}</span>
-        {char.specialAbility?.replace(/([A-Z])/g, ' $1').trim()}
-        {cd > 0 && <span className="ml-2 badge bg-red-500/20 text-red-300">CD {cd}</span>}
-        {me.abilitiesDisabled && <span className="ml-2 badge bg-orange-500/20 text-orange-300">Bloqueada</span>}
+        {abilityLabels[char.specialAbility] ?? char.specialAbility}
+        {cd > 0 && <span className="ml-2 text-xs opacity-70">CD {cd}</span>}
+        {me.abilitiesDisabled && <span className="ml-2 text-xs opacity-70">Bloqueada</span>}
       </button>
 
       {showTargets && (
-        <div className="absolute bottom-full mb-2 left-0 right-0 bg-game-card border border-white/20 rounded-xl p-3 z-10 shadow-xl">
+        <div className="absolute bottom-full mb-2 left-0 right-0 bg-[#1a1035] border border-white/20 rounded-xl p-3 z-20 shadow-2xl">
           <p className="text-xs text-white/60 mb-2">Elige objetivo:</p>
           {otherPlayers.map((p) => (
             <button
               key={p.id}
               onClick={() => activateAbility(abilityId, p.id)}
-              className="w-full text-left py-2 px-3 hover:bg-white/10 rounded-lg text-sm transition-colors mb-1"
+              className="w-full text-left py-2 px-3 hover:bg-white/10 rounded-lg text-sm transition-colors mb-1 flex items-center gap-2"
             >
-              {getCharacter(p.characterId)?.emoji} {p.username} (${p.money})
+              <span>{getCharacter(p.characterId)?.emoji}</span>
+              <span>{p.username}</span>
+              <span className="ml-auto text-white/40">${p.money}</span>
             </button>
           ))}
-          <button onClick={() => setShowTargets(false)} className="w-full text-xs text-white/40 mt-1">Cancelar</button>
+          <button onClick={() => setShowTargets(false)} className="w-full text-xs text-white/30 mt-1 py-1">Cancelar</button>
         </div>
       )}
-
     </div>
   );
 }
