@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { connectSocket } from '../sockets/socketClient';
+import { useGameStore } from '../store/gameStore';
+import { connectSocket, disconnectSocket } from '../sockets/socketClient';
 import { useEffect } from 'react';
 
 export default function DashboardPage() {
@@ -12,6 +13,8 @@ export default function DashboardPage() {
   }, []);
 
   const handleLogout = () => {
+    disconnectSocket();          // fuerza un socket nuevo con el token del próximo login
+    useGameStore.getState().reset();
     logout();
     navigate('/login');
   };

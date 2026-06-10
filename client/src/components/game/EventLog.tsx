@@ -44,7 +44,7 @@ export default function EventLog({ events }: Props) {
         return (
           <div
             key={ev.id}
-            className="flex gap-2 items-start py-1 px-2 rounded-lg bg-white/5 hover:bg-white/8 transition-colors"
+            className="flex gap-2 items-start py-1 px-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
           >
             <span className="text-base flex-shrink-0 leading-tight mt-0.5">{style.icon}</span>
             <span className={`text-xs leading-snug ${style.color}`}>{ev.message}</span>

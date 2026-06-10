@@ -92,6 +92,7 @@ export interface Player {
   statuses: PlayerStatus[];
   turnsSinceLastInjury: number;
   injuredThisTurn: boolean;
+  comebackPending: boolean;
   rentShield: boolean;
   taxShield: boolean;
   abilitiesDisabled: boolean;
@@ -143,6 +144,8 @@ export interface GameState {
   winner?: Player;
   status: 'waiting' | 'playing' | 'finished';
   pendingAction?: PendingAction;
+  chaosCardDeck: Card[];
+  groupCardDeck: Card[];
 }
 
 export interface PendingAction {

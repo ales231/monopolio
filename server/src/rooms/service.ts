@@ -52,8 +52,8 @@ export function getRoomById(id: string): Room | undefined {
 export function joinRoom(roomId: string, player: RoomPlayer): Room | undefined {
   const room = rooms.get(roomId);
   if (!room || room.status !== 'LOBBY') return undefined;
-  if (room.players.length >= 7) return undefined;
   if (room.players.find((p) => p.userId === player.userId)) return room;
+  if (room.players.length >= 7) return undefined;
   room.players.push(player);
   return room;
 }

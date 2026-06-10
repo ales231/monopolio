@@ -1,4 +1,5 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { GameState, Player } from '@shared/types/index';
 import { BOARD_TILES, GROUP_COLORS, TILE_ICONS } from '../../data/board';
 import { getCharacter } from '../../data/characters';
@@ -8,6 +9,9 @@ interface Props {
   game: GameState;
   onTileClick?: (id: number) => void;
 }
+
+// ── Geometría del tablero ──────────────────────────────────────────────────
+// Grid 11x11: esquinas en (1,1),(1,11),(11,1),(11,11). Columnas: 1.6fr + 9×1fr + 1.6fr
 
 function getGridPos(id: number): { gridRow: number; gridCol: number } {
   if (id === 0)  return { gridRow: 11, gridCol: 11 };
@@ -20,34 +24,131 @@ function getGridPos(id: number): { gridRow: number; gridCol: number } {
   return { gridRow: id - 29, gridCol: 11 };
 }
 
-function abbreviate(name: string, max = 11): string {
-  return name.length > max ? name.slice(0, max - 1) + '…' : name;
+const EDGE_FR = 1.6;
+const TOTAL_FR = EDGE_FR * 2 + 9;
+
+// Posición inicial y tamaño (en %) de una pista (fila o columna) del grid
+function trackPos(i: number): { start: number; size: number } {
+  if (i === 1) return { start: 0, size: (EDGE_FR / TOTAL_FR) * 100 };
+  if (i === 11) return { start: ((EDGE_FR + 9) / TOTAL_FR) * 100, size: (EDGE_FR / TOTAL_FR) * 100 };
+  return { start: ((EDGE_FR + (i - 2)) / TOTAL_FR) * 100, size: (1 / TOTAL_FR) * 100 };
 }
 
-function PlayerPiece({ player, isCurrentTurn }: { player: Player; isCurrentTurn: boolean }) {
-  const char = getCharacter(player.characterId);
+// Centro de una casilla en % del tablero
+function tileCenter(id: number): { x: number; y: number } {
+  const { gridRow, gridCol } = getGridPos(id);
+  const col = trackPos(gridCol);
+  const row = trackPos(gridRow);
+  return { x: col.start + col.size / 2, y: row.start + row.size / 2 };
+}
+
+// ── Animación de movimiento paso a paso ────────────────────────────────────
+// Cada ficha mantiene una posición "visual" que avanza una casilla cada tick
+// hasta alcanzar la posición real del servidor.
+
+const STEP_MS = 190;
+
+function useSteppedPositions(players: Player[]): Record<string, number> {
+  const [display, setDisplay] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const tick = () => {
+      setDisplay((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const p of players) {
+          const cur = prev[p.id];
+          if (cur === undefined) {
+            next[p.id] = p.position;
+            changed = true;
+            continue;
+          }
+          if (cur === p.position) continue;
+          const fwd = (p.position - cur + 40) % 40;
+          const back = (cur - p.position + 40) % 40;
+          if (fwd <= 12) {
+            next[p.id] = (cur + 1) % 40;           // camina hacia adelante
+          } else if (back <= 4) {
+            next[p.id] = (cur - 1 + 40) % 40;      // camina hacia atrás (empujón, carta)
+          } else {
+            next[p.id] = p.position;               // teletransporte (cárcel)
+          }
+          changed = true;
+        }
+        return changed ? next : prev;
+      });
+    };
+    tick();
+    const interval = setInterval(tick, STEP_MS);
+    return () => clearInterval(interval);
+  }, [players]);
+
+  return display;
+}
+
+function PiecesLayer({ game }: { game: GameState }) {
+  const players = game.players.filter((p) => !p.isBankrupt);
+  const display = useSteppedPositions(players);
+
   return (
-    <motion.div
-      key={`${player.id}-${player.position}`}
-      initial={{ scale: 0, y: -10 }}
-      animate={{ scale: 1, y: 0 }}
-      exit={{ scale: 0 }}
-      transition={{ type: 'spring', stiffness: 500, damping: 20 }}
-      title={`${player.username} ($${player.money})`}
-      className={clsx(
-        'w-5 h-5 rounded-full flex items-center justify-center shadow-md text-[9px] font-bold select-none border-2',
-        isCurrentTurn ? 'border-yellow-400 z-20' : 'border-white/50 z-10'
-      )}
-      style={{ background: char?.color ?? '#7c3aed' }}
-    >
-      {char?.emoji}
-    </motion.div>
+    <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 30 }}>
+      {players.map((p) => {
+        const pos = display[p.id] ?? p.position;
+        const { x, y } = tileCenter(pos);
+        // Si hay varias fichas en la misma casilla, las separa en racimo
+        const peers = players.filter((o) => (display[o.id] ?? o.position) === pos);
+        const idx = peers.findIndex((o) => o.id === p.id);
+        const ox = ((idx % 3) - (Math.min(peers.length, 3) - 1) / 2) * 13;
+        const oy = (Math.floor(idx / 3) - 0.5) * (peers.length > 3 ? 13 : 0);
+        const char = getCharacter(p.characterId);
+        const isCurrent = p.id === game.currentPlayerId;
+        const isWalking = pos !== p.position;
+
+        return (
+          <motion.div
+            key={p.id}
+            animate={{
+              left: `${x}%`,
+              top: `${y}%`,
+              x: ox,
+              y: oy,
+              scale: isWalking ? 1.25 : isCurrent ? 1.12 : 1,
+            }}
+            transition={{ type: 'spring', stiffness: 320, damping: 22 }}
+            className={clsx(
+              'flex items-center justify-center rounded-full select-none',
+              isCurrent && 'ring-2 ring-yellow-400'
+            )}
+            style={{
+              position: 'absolute',
+              width: 24,
+              height: 24,
+              marginLeft: -12,
+              marginTop: -12,
+              fontSize: 11,
+              background: char?.color ?? '#7c3aed',
+              border: '2px solid rgba(255,255,255,0.75)',
+              boxShadow: '0 3px 8px rgba(0,0,0,0.5)',
+              zIndex: isCurrent ? 32 : 31,
+            }}
+            title={`${p.username} ($${p.money})`}
+          >
+            {char?.emoji}
+          </motion.div>
+        );
+      })}
+    </div>
   );
 }
 
-function TileCell({ tile, players, isActive, onClick }: {
+// ── Casillas ───────────────────────────────────────────────────────────────
+
+function abbreviate(name: string, max = 13): string {
+  return name.length > max ? name.slice(0, max - 1) + '…' : name;
+}
+
+function TileCell({ tile, isActive, onClick }: {
   tile: (typeof BOARD_TILES)[0];
-  players: Player[];
   isActive: boolean;
   onClick?: () => void;
 }) {
@@ -59,7 +160,7 @@ function TileCell({ tile, players, isActive, onClick }: {
     <div
       onClick={onClick}
       className={clsx(
-        'relative flex flex-col items-center justify-start h-full w-full select-none cursor-pointer transition-all overflow-hidden',
+        'relative flex flex-col items-center justify-start h-full w-full select-none cursor-pointer overflow-hidden transition-all',
         isActive && 'outline outline-2 outline-yellow-400 outline-offset-[-2px] z-10'
       )}
       style={{
@@ -68,10 +169,7 @@ function TileCell({ tile, players, isActive, onClick }: {
         borderBottom: '1px solid rgba(255,255,255,0.06)',
       }}
     >
-      {/* Color strip top */}
-      {!isCorner && (
-        <div className="w-full flex-shrink-0" style={{ height: 5, background: color }} />
-      )}
+      {!isCorner && <div className="w-full flex-shrink-0" style={{ height: 5, background: color }} />}
 
       {isCorner ? (
         <div className="flex flex-col items-center justify-center w-full h-full p-1 text-center gap-0.5">
@@ -85,7 +183,7 @@ function TileCell({ tile, players, isActive, onClick }: {
             className="text-white/75 text-center leading-tight w-full"
             style={{ fontSize: '6px', wordBreak: 'break-word', lineHeight: '1.15' }}
           >
-            {abbreviate(tile.name, 13)}
+            {abbreviate(tile.name)}
           </span>
           {tile.price ? (
             <span className="text-yellow-300 font-semibold" style={{ fontSize: '6.5px' }}>${tile.price}</span>
@@ -96,52 +194,36 @@ function TileCell({ tile, players, isActive, onClick }: {
           )}
         </div>
       )}
-
-      {/* Jugadores en la casilla */}
-      {players.length > 0 && (
-        <div className="absolute bottom-0.5 left-0 right-0 flex flex-wrap gap-px justify-center px-0.5">
-          <AnimatePresence>
-            {players.map((p) => (
-              <PlayerPiece
-                key={p.id}
-                player={p}
-                isCurrentTurn={p.id === players[0]?.id && isActive}
-              />
-            ))}
-          </AnimatePresence>
-        </div>
-      )}
     </div>
   );
 }
 
+// ── Tablero ────────────────────────────────────────────────────────────────
+
 export default function Board({ game, onTileClick }: Props) {
   const activePlayers = game.players.filter((p) => !p.isBankrupt);
+  const currentPlayer = game.players.find((p) => p.id === game.currentPlayerId);
 
   return (
-    <div className="w-full" style={{ aspectRatio: '1 / 1' }}>
+    <div className="w-full relative" style={{ aspectRatio: '1 / 1' }}>
       <div
         className="w-full h-full grid"
         style={{
-          gridTemplateColumns: '1.6fr repeat(9, 1fr) 1.6fr',
-          gridTemplateRows: '1.6fr repeat(9, 1fr) 1.6fr',
+          gridTemplateColumns: `${EDGE_FR}fr repeat(9, 1fr) ${EDGE_FR}fr`,
+          gridTemplateRows: `${EDGE_FR}fr repeat(9, 1fr) ${EDGE_FR}fr`,
           background: '#141b2d',
-          borderRadius: '6px',
+          borderRadius: 6,
           overflow: 'hidden',
           border: '2px solid #2a3550',
         }}
       >
         {BOARD_TILES.map((tile) => {
           const pos = getGridPos(tile.id);
-          const playersOnTile = activePlayers.filter((p) => p.position === tile.id);
-          const isCurrentTurn = playersOnTile.some((p) => p.id === game.currentPlayerId);
-
           return (
             <div key={tile.id} style={{ gridRow: pos.gridRow, gridColumn: pos.gridCol }}>
               <TileCell
                 tile={tile}
-                players={playersOnTile}
-                isActive={isCurrentTurn}
+                isActive={currentPlayer?.position === tile.id}
                 onClick={() => onTileClick?.(tile.id)}
               />
             </div>
@@ -164,13 +246,16 @@ export default function Board({ game, onTileClick }: Props) {
               return (
                 <div key={p.id} className="flex items-center gap-1" style={{ fontSize: 'clamp(6px, 1vw, 9px)' }}>
                   <span style={{ color: c?.color }}>{c?.emoji}</span>
-                  <span className="text-yellow-300 font-bold">${p.money}</span>
+                  <span className={clsx('font-bold', p.money < 0 ? 'text-red-400' : 'text-yellow-300')}>${p.money}</span>
                 </div>
               );
             })}
           </div>
         </div>
       </div>
+
+      {/* Capa de fichas animadas (encima del grid) */}
+      <PiecesLayer game={game} />
     </div>
   );
 }

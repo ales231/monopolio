@@ -25,9 +25,10 @@ export function getSocket(): Socket {
       useGameStore.getState().setGame(gameState);
     });
 
-    socket.on('game:diceRolled', ({ dice, playerId }) => {
-      useGameStore.getState().setLastDice(dice);
-      useGameStore.getState().showPhrase(playerId);
+    socket.on('game:diceRolled', ({ dice }) => {
+      if (Array.isArray(dice) && dice.length > 0) {
+        useGameStore.getState().setLastDice([...dice]);
+      }
     });
 
     socket.on('chat:message', (msg) => {
@@ -40,11 +41,10 @@ export function getSocket(): Socket {
     });
 
     socket.on('game:finished', ({ winner }) => {
-      useGameStore.getState().setGame({
-        ...useGameStore.getState().game!,
-        status: 'finished',
-        winner,
-      });
+      const current = useGameStore.getState().game;
+      if (current) {
+        useGameStore.getState().setGame({ ...current, status: 'finished', winner });
+      }
     });
 
     socket.on('connect_error', (err) => {
